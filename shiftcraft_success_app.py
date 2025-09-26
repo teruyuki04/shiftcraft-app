@@ -1,0 +1,118 @@
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import roc_auc_score, brier_score_loss
+import io
+
+st.set_page_config(page_title="Shiftcraft: Success Probability App", layout="centered")
+st.title("Shiftcraft｜課題仮説×実装×スケール化 → 成功確率アプリ")
+
+with st.expander("このアプリについて（クリックで展開）", expanded=False):
+    st.markdown("""
+    - 入力：**H=課題仮説(0–30)**、**I=初期実装(0–5)**、**S=スケール化(0–5)**  
+    - 学習：CSVをアップロードすると、モデル（ロジスティック回帰＋確率校正）を学習します。  
+    - 予測：H/I/Sから**成功確率**を返します。  
+    - ラベル：成功= A+B≥8（A=財務0–5, B=新市場0–5）を1、それ以外は0として学習。  
+    """)
+
+st.header("① データを用意（CSVアップロード or サンプル使用）")
+st.markdown("必要列：company, H, I, S, A, B  （A+B>=8 を成功=1として学習します）")
+
+sample_btn = st.button("サンプルデータを読み込む（Octopus / Udacity / Airbnb）")
+uploaded = st.file_uploader("CSVをアップロード（UTF-8）", type=["csv"])
+
+if sample_btn and not uploaded:
+    sample = pd.DataFrame([
+        {"company":"Octopus Energy","H":30,"I":5,"S":5,"A":5,"B":5},
+        {"company":"Udacity","H":23,"I":3,"S":2,"A":3,"B":3},
+        {"company":"Airbnb","H":30,"I":4,"S":5,"A":5,"B":5},
+    ])
+    df = sample.copy()
+elif uploaded is not None:
+    df = pd.read_csv(uploaded)
+else:
+    df = None
+
+if df is not None:
+    st.dataframe(df)
+
+    # Build label (success=1 if A+B>=8)
+    if not {'company','H','I','S','A','B'}.issubset(df.columns):
+        st.error("必要列が不足しています。company, H, I, S, A, B を含めてください。")
+        st.stop()
+
+    data = df.copy()
+    data['label_success'] = ((data['A'] + data['B']) >= 8).astype(int)
+
+    st.write("学習用ラベル（成功=1）：", data['label_success'].value_counts().to_dict())
+
+    X = data[['H','I','S']].copy()
+    # normalize to [0,1] scale for stability
+    X['h'] = X['H'] / 30.0
+    X['i'] = X['I'] / 5.0
+    X['s'] = X['S'] / 5.0
+    # interactions
+    X['h_i'] = X['h'] * X['i']
+    X['i_s'] = X['i'] * X['s']
+
+    y = data['label_success']
+
+    # Because dataset may be tiny, fall back to simple fit without split
+    if y.nunique() < 2:
+        st.warning("成功/非成功の両方のデータが必要です。現状は片側のみのため、評価はスキップして学習のみ行います。")
+
+    model = Pipeline([
+        ("clf", LogisticRegression(penalty="elasticnet", l1_ratio=0.5, solver="saga", max_iter=5000))
+    ])
+
+    try:
+        model.fit(X[['h','i','s','h_i','i_s']], y)
+        # Calibrate with same data if no split (small data). In production, use proper CV.
+        calibrated = CalibratedClassifierCV(model, cv="prefit", method="isotonic")
+        calibrated.fit(X[['h','i','s','h_i','i_s']], y)
+    except Exception as e:
+        st.error(f"学習中にエラー：{e}")
+        st.stop()
+
+    st.success("モデル学習＋確率校正 完了")
+
+    # Optional quick metrics if both classes exist
+    if y.nunique() == 2 and len(y) >= 4:
+        try:
+            prob = calibrated.predict_proba(X[['h','i','s','h_i','i_s']])[:,1]
+            auc = roc_auc_score(y, prob)
+            brier = brier_score_loss(y, prob)
+            st.write(f"AUC: {auc:.3f} | Brier: {brier:.3f}")
+        except Exception:
+            pass
+
+    st.header("② 予測（H/I/Sを入力）")
+    H_in = st.number_input("H（課題仮説：0–30）", min_value=0, max_value=30, value=24, step=1)
+    I_in = st.number_input("I（初期実装：0–5）", min_value=0, max_value=5, value=3, step=1)
+    S_in = st.number_input("S（スケール化：0–5）", min_value=0, max_value=5, value=0, step=1)
+
+    xq = pd.DataFrame([{
+        "h": H_in/30.0,
+        "i": I_in/5.0,
+        "s": S_in/5.0,
+        "h_i": (H_in/30.0)*(I_in/5.0),
+        "i_s": (I_in/5.0)*(S_in/5.0),
+    }])
+
+    p = calibrated.predict_proba(xq)[0,1]
+    st.metric(label="成功確率（校正後）", value=f"{p*100:.1f}%")
+
+    st.caption("※ 小規模データでは確率は不安定です。事例を追加して精度を高めてください。")
+
+    # allow download of calibrated model inputs for audit
+    buf = io.StringIO()
+    data.to_csv(buf, index=False)
+    st.download_button("学習データ（ラベル付き）をダウンロード", buf.getvalue(), file_name="training_data_labeled.csv", mime="text/csv")
+else:
+    st.info("CSVをアップロードするか、サンプルデータを読み込んでください。")
