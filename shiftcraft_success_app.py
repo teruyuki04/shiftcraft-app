@@ -106,6 +106,38 @@ if df is not None:
     }])
 
     p = calibrated.predict_proba(xq)[0,1]
+    # --- 上流モード補正 ---
+use_early_mode = st.sidebar.checkbox("上流モード（H重視の安全補正を有効化）", value=True)
+
+if use_early_mode:
+    H_GATE = 12
+    H_HARD_FLOOR = 8
+    CAP_STRONG_IS = 0.50
+    CAP_ZERO_H   = 0.35
+
+    explain_rules = []
+
+    # 1) H=0 は 35% 上限
+    if H_in == 0:
+        old = P
+        P = min(P, CAP_ZERO_H)
+        if P < old:
+            explain_rules.append(f"H=0のため {old*100:.1f}%→{P*100:.1f}%に補正")
+
+    # 2) Hゲート未達 かつ I/S高スコア
+    if H_in < H_GATE and I_in >= 4 and S_in >= 4:
+        old = P
+        P = min(P, CAP_STRONG_IS)
+        if P < old:
+            explain_rules.append(f"H<{H_GATE} かつ I/S高スコアのため {old*100:.1f}%→{P*100:.1f}%に補正")
+
+    # 3) H が極端に低い場合
+    if H_in < H_HARD_FLOOR:
+        old = P
+        P = min(P, CAP_ZERO_H)
+        if P < old:
+            explain_rules.append(f"H<{H_HARD_FLOOR} のため {old*100:.1f}%→{P*100:.1f}%に補正")
+
     st.metric(label="成功確率（校正後）", value=f"{p*100:.1f}%")
 
     st.caption("※ 小規模データでは確率は不安定です。事例を追加して精度を高めてください。")
