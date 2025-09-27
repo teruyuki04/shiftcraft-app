@@ -154,13 +154,14 @@ with tab_bench:
     # ---- ベンチマーク比較モード本体（ここに“従来のベンチ計算と表示”を移動）----
 
     # 1) ヘルパー
-    def percentile_rank(samples, x):
-        import numpy as np
-        samples = np.asarray(samples)
-        if samples.size == 0:
-        return None
-        # 上位% = 自分より大きいサンプルの割合
-        return float((samples > x).sum()) / samples.size * 100.0
+   def percentile_rank(samples, x):
+       import numpy as np
+       samples = np.asarray(samples, dtype=float)
+       samples = samples[np.isfinite(samples)]           # NaN/Inf を除去
+       if samples.size == 0:
+           return None
+       # 「上位%」= 自分より大きいサンプルの割合
+       return float((samples > x).sum()) / samples.size * 100.0
     bench = st.session_state.get("bench")
     if not bench:
         st.warning("まだベンチマーク統計がありません。上部でCSV学習（成功企業データ）を実行してください。")
