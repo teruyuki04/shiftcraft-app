@@ -125,21 +125,21 @@ if use_early_mode and all(name in locals() for name in ["H_in", "I_in", "S_in", 
         old = P
         P = min(P, CAP_ZERO_H)
         if P < old:
-            explain_rules.append(f"H=0のため {old*100:.1f}%→{P*100:.1f}%に補正")
+            explain_rules.append(f"H=0のため {P*100:.1f}%→{P*100:.1f}%に補正")
 
     # 2) Hゲート未達 かつ I/S≧4 は 50% 上限
     if H_in < H_GATE and I_in >= 4 and S_in >= 4:
         old = P
         P = min(P, CAP_STRONG_IS)
         if P < old:
-            explain_rules.append(f"H<{H_GATE} かつ I/S高スコアのため {old*100:.1f}%→{P*100:.1f}%に補正")
+            explain_rules.append(f"H<{H_GATE} かつ I/S高スコアのため {P*100:.1f}%→{P*100:.1f}%に補正")
 
     # 3) H<8 も安全側に 35% 上限
     if H_in < H_HARD_FLOOR:
         old = P
         P = min(P, CAP_ZERO_H)
         if P < old:
-            explain_rules.append(f"H<{H_HARD_FLOOR} のため {old*100:.1f}%→{P*100:.1f}%に補正")
+            explain_rules.append(f"H<{H_HARD_FLOOR} のため {P*100:.1f}%→{P*100:.1f}%に補正")
 # ---- ガードここまで ----
 
 st.metric(label="成功確率（校正後）", value=f"{P*100:.1f}%")
