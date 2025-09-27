@@ -173,9 +173,13 @@ with tab_bench:
         # 3) H+I 複合（z平均）
         # H と I の重み（H をどれだけ重視するか）
         w = st.slider("H と I の重み（H をどれだけ重視するか）", min_value=0.0, max_value=1.0, value=0.60, step=0.05)
-        z_h  = (Hn - bench["mu_h"]) / (bench["sd_h"] or 1e-6)
-        z_i  = (In_ - bench["mu_i"]) / (bench["sd_i"] or 1e-6)
-        # （任意の重みスライダーを使うなら）: w = st.slider(...); z_hi = w*z_h + (1-w)*z_i
+        eps = 1e-3
+        sd_h = bench["sd_h"] if bench["sd_h"] and bench["sd_h"] > eps else eps
+        sd_i = bench["sd_i"] if bench["sd_i"] and bench["sd_i"] > eps else eps
+
+        z_h = (Hn - bench["mu_h"]) / sd_h
+        z_i = (In_ - bench["mu_i"]) / sd_i
+        # 合成は既に w を導入済みなら：
         z_hi = w * z_h + (1.0 - w) * z_i
         hi_pct = percentile_rank(bench["z_hi_samples"], z_hi)
         if hi_pct is None:
