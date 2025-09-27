@@ -192,69 +192,56 @@ with tab_bench:
             return None
         return float((samples > x).sum()) / samples.size * 100.0
 
+        # --- ベンチ統計を取得して z を計算（安全版） ---
     bench = st.session_state.get("bench")
-    bench = st.session_state.get("bench")
-    if (not bench) or ("i_samples" not in bench) or ("z_hi_samples" not in bench):
-        st.warning("ベンチマーク統計が不足しています。上部でCSVを読み込み（学習）してください。")
+
+    # H 側
+    mu_h = bench.get("mu_h") if bench else None
+    sd_h = bench.get("sd_h") if bench else None
+    if (mu_h is None) or (sd_h is None) or (sd_h == 0):
+        z_h = None
+    else:
+        z_h = (Hn - mu_h) / sd_h
+
+    # I 側
+    mu_i = bench.get("mu_i") if bench else None
+    sd_i = bench.get("sd_i") if bench else None
+    if (mu_i is None) or (sd_i is None) or (sd_i == 0):
+        z_i = None
+    else:
+        z_i = (In_ - mu_i) / sd_i
+
+    # 重み（H をどれだけ重視するか）
+    w = st.slider("H と I の重み（H をどれだけ重視するか）", min_value=0.0, max_value=1.0, value=0.60)
+
+    # z_hi の安全な合成（z_i がないときに落ちないように）
+    if (z_h is None) and (z_i is None):
+        st.warning("H と I の比較に必要なベンチマーク統計が不足しています。")
+        st.stop()
+    elif z_i is None:
+        z_hi = z_h
+    elif z_h is None:
+        z_hi = z_i
+    else:
+        z_hi = w * z_h + (1.0 - w) * z_i
+
+    # パーセンタイル計算（サンプルが空なら止める）
+    h_pct  = percentile_rank(bench.get("h_samples", []),  Hn)
+    hi_pct = percentile_rank(bench.get("z_hi_samples", []), z_hi)
+    if (h_pct is None) or (hi_pct is None):
+        st.warning("ベンチマーク件数が不足しています。成功企業データで学習してください。")
         st.stop()
 
+    # 表示
+    st.subheader("📊 ベンチマーク比較（成功企業に対する相対位置）")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("H（課題仮説）の位置", f"上位 {100 - h_pct:.1f}%")
+        st.caption(f"H 正規化値: {Hn:.3f}｜成功企業の平均: {bench.get('mu_h')!s} (±{bench.get('sd_h')!s})")
+    with col2:
+        st.metric("H+I（複合）の位置", f"上位 {100 - hi_pct:.1f}%")
+        st.caption(f"z_h={z_h if z_h is not None else 'N/A':.2f} , z_i={z_i if z_i is not None else 'N/A':.2f} , 重み w={w:.2f}")
 
-    if not bench:
-        st.warning("まだベンチマーク統計がありません。上部でCSV学習（成功企業データ）を実行してください。")
-    else:
-        # 2) H 単独
-        h_pct = percentile_rank(bench["h_samples"], Hn)
-        if h_pct is None:
-            st.warning("Hの比較に必要なデータが不足しています。")
-
-        # 3) H+I 複合（z平均）
-        # H と I の重み
-        w = st.slider("H と I の重み（H をどれだけ重視するか）", min_value=0.0, max_value=1.0, value=0.60)
-
-        # 安定化用の下限（極小分散対策）
-        eps = 1e-6
-        sd_h = bench.get("sd_h", None)
-        sd_i = bench.get("sd_i", None)
-        sd_h = sd_h if (sd_h is not None and sd_h > eps) else eps
-        sd_i = sd_i if (sd_i is not None and sd_i > eps) else eps
-
-        # あなたの現在値の z
-        z_h = (Hn - bench["mu_h"]) / sd_h
-        mu_i = bench.get("mu_i")
-        sd_i = bench.get("sd_i")
-
-        if mu_i is None or sd_i is None or sd_i == 0:
-            z_i = None
-        else:
-            z_i = (In - mu_i) / sd_i
-
-
-        # 母集団の z 配列も同じ条件で再計算（NaN/Inf除去）
-        import numpy as np
-        h_samples = np.asarray(bench["h_samples"], dtype=float)
-        i_samples = np.asarray(bench["i_samples"], dtype=float)
-        z_h_samples = (h_samples - bench["mu_h"]) / sd_h
-        z_i_samples = (i_samples - bench["mu_i"]) / sd_i
-        z_h_samples = z_h_samples[np.isfinite(z_h_samples)]
-        z_i_samples = z_i_samples[np.isfinite(z_i_samples)]
-
-        # 合成 z（あなた & 配列）
-        z_hi = w * z_h + (1.0 - w) * z_i
-        z_hi_samples = w * z_h_samples + (1.0 - w) * z_i_samples
-        z_hi_samples = z_hi_samples[np.isfinite(z_hi_samples)]
-
-        # パーセンタイル
-        hi_pct = percentile_rank(z_hi_samples, z_hi)
-
-        # 表示
-        st.subheader("📊 ベンチマーク比較（成功企業に対する相対位置）")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("H（課題仮説）の位置", f"上位 { (h_pct if h_pct is not None else 0):.1f}%")
-            st.caption(f"H 正規化値: {Hn:.3f} | 成功企業の平均: {bench['mu_h']:.3f} (±{bench['sd_h']:.3f})")
-        with col2:
-            st.metric("H+I（複合）の位置", f"上位 { (hi_pct if hi_pct is not None else 0):.1f}%")
-            st.caption(f"z_h={z_h:.2f}, z_i={z_i:.2f}, 重み w={w:.2f} → 合成 z={z_hi:.2f}")
 
         # 任意の可視化（進捗バー）
         st.write("H（課題仮説）の位置")
