@@ -145,6 +145,40 @@ Xq = pd.DataFrame([{
     "h_i": Hn * In_,
     "i_s": In_ * Sn,
 }])[["h", "i", "s", "h_i", "i_s"]]
+# ---- ベンチマーク比較モード ----  ← 118行目の直後に入れる
+def percentile_rank(samples, x):
+    import numpy as np
+    samples = np.asarray(samples)
+    if samples.size == 0:
+        return None
+    return float((samples <= x).sum()) / samples.size * 100.0
+
+if mode == "ベンチマーク比較":
+    bench = st.session_state.get("bench")
+    if not bench:
+        st.warning("まだベンチマーク統計がありません。上部でCSV学習（成功企業データ）を実行してください。")
+        st.stop()
+
+    # H単独（0-1スケールの h のパーセンタイル）
+    h_pct = percentile_rank(bench["h_samples"], Hn)
+
+    # H+I 複合：zスコア平均 → 成功企業の z_hi サンプル分布に対するパーセンタイル
+    z_h  = (Hn - bench["mu_h"]) / (bench["sd_h"] or 1e-6)
+    z_i  = (In_ - bench["mu_i"]) / (bench["sd_i"] or 1e-6)
+    z_hi = (z_h + z_i) / 2.0
+    hi_pct = percentile_rank(bench["z_hi_samples"], z_hi)
+
+    st.subheader("📊 ベンチマーク比較（成功企業に対する相対位置）")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("H（課題仮説）の位置", f"上位 {100 - h_pct:.1f}%")
+        st.caption(f"H 正規化値: {Hn:.3f}｜成功企業の平均: {bench['mu_h']:.3f}（±{bench['sd_h']:.3f}）")
+    with col2:
+        st.metric("H+I（複合）の位置", f"上位 {100 - hi_pct:.1f}%")
+        st.caption(f"z_h={z_h:.2f}, z_i={z_i:.2f} → 合成 z={z_hi:.2f}")
+
+    st.info("目安: 上位30%以内＝かなり良い。50%前後＝平均域。下位側は見直し候補。")
+    st.stop()  # ここで終了（以降の“成功確率予測”は実行しない）
 
 
 # 学習済みモデルを session_state から取得
