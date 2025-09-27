@@ -174,15 +174,34 @@ with tab_bench:
         # 3) H+I 複合（z平均）
         # H と I の重み（H をどれだけ重視するか）
         w = st.slider("H と I の重み（H をどれだけ重視するか）", min_value=0.0, max_value=1.0, value=0.60, step=0.05)
-        eps = 1e-3
-        sd_h = bench["sd_h"] if bench["sd_h"] and bench["sd_h"] > eps else eps
-        sd_i = bench["sd_i"] if bench["sd_i"] and bench["sd_i"] > eps else eps
+        # ---- 安定化用の ε 下限（極小分散対策）----
+        eps = 1e-6
+        sd_h = bench.get("sd_h", None)
+        sd_i = bench.get("sd_i", None)
+        sd_h = sd_h if (sd_h is not None and sd_h > eps) else eps
+        sd_i = sd_i if (sd_i is not None and sd_i > eps) else eps
 
+        # あなたの現在値の z
         z_h = (Hn - bench["mu_h"]) / sd_h
         z_i = (In_ - bench["mu_i"]) / sd_i
-        # 合成は既に w を導入済みなら：
+
+        # 母集団の z 配列を “同じ ε” で再計算（←ここがポイント）
+        import numpy as np
+        h_samples = np.asarray(bench["h_samples"], dtype=float)
+        i_samples = np.asarray(bench["i_samples"], dtype=float)
+
+        z_h_samples = (h_samples - bench["mu_h"]) / sd_h
+        z_i_samples = (i_samples - bench["mu_i"]) / sd_i
+
+        # 合成はスライダー w を使って「配列も」作る
+        z_hi_samples = w * z_h_samples + (1.0 - w) * z_i_samples
+        # 合成 z（あなたの現在値）
         z_hi = w * z_h + (1.0 - w) * z_i
-        hi_pct = percentile_rank(bench["z_hi_samples"], z_hi)
+
+        # NaN/Inf を除いた上でパーセンタイル
+        h_pct  = percentile_rank(z_h_samples,  z_h)
+        hi_pct = percentile_rank(z_hi_samples, z_hi)
+
         if hi_pct is None:
             st.warning("H+Iの比較に必要なデータが不足しています。")
 
