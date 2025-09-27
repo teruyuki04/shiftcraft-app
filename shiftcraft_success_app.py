@@ -48,6 +48,36 @@ if df is None:
 
 # ---- データ表示 ----
 st.dataframe(df)
+# === ベンチマーク統計を保存（H / I / 合成） ===
+import numpy as np
+
+# 正規化（学習と同じスケール）
+h_samples = (df["H"].astype(float) / 30.0).to_numpy()
+i_samples = (df["I"].astype(float) / 5.0).to_numpy()
+
+# NaN / Inf を除去
+mask = np.isfinite(h_samples) & np.isfinite(i_samples)
+h_samples = h_samples[mask]
+i_samples  = i_samples[mask]
+
+# 平均・分散（極小分散対策の eps 付与）
+eps = 1e-6
+mu_h = float(h_samples.mean()); sd_h = float(h_samples.std() + eps)
+mu_i = float(i_samples.mean());  sd_i = float(i_samples.std()  + eps)
+
+# z 配列と H+I 合成 z 配列（平均）
+z_h = (h_samples - mu_h) / sd_h
+z_i = (i_samples - mu_i) / sd_i
+z_hi_samples = (z_h + z_i) / 2.0
+
+# セッションに保存（ベンチマーク比較タブで使う）
+st.session_state["bench"] = {
+    "h_samples": h_samples,
+    "i_samples": i_samples,
+    "z_hi_samples": z_hi_samples,
+    "mu_h": mu_h, "sd_h": sd_h,
+    "mu_i": mu_i, "sd_i": sd_i,
+}
 
 # ---- 必要列チェック ----
 required_cols = {'company', 'H', 'I', 'S', 'A', 'B'}
