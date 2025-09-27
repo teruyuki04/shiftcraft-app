@@ -50,18 +50,19 @@ if df is not None:
     data = df.copy()
     data['label_success'] = ((data['A'] + data['B']) >= 8).astype(int)
 
-    st.write("学習用ラベル（成功=1）：", data['label_success'].value_counts().to_dict())
+   # data: アップロードCSVのコピー（既にあります）
+# ラベル（成功=1）も既に作成済みの想定: data['label_success']
 
-    X = data[['H','I','S']].copy()
-    # normalize to [0,1] scale for stability
-    X['h'] = X['H'] / 30.0
-    X['i'] = X['I'] / 5.0
-    X['s'] = X['S'] / 5.0
-    # interactions
-    X['h_i'] = X['h'] * X['i']
-    X['i_s'] = X['i'] * X['s']
+# 正規化した特徴量（学習用）
+data["h"]   = data["H"] / 30.0
+data["i"]   = data["I"] / 5.0
+data["s"]   = data["S"] / 5.0
+data["h_i"] = data["h"] * data["i"]
+data["i_s"] = data["i"] * data["s"]
 
-    y = data['label_success']
+X = data[["h","i","s","h_i","i_s"]].copy()
+y = data["label_success"].astype(int)
+
 
     # Because dataset may be tiny, fall back to simple fit without split
     if y.nunique() < 2:
