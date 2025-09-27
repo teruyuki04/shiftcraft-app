@@ -167,6 +167,8 @@ with tab_bench:
         if h_pct is None:
             st.warning("Hの比較に必要なデータが不足しています。")
         # 3) H+I 複合（z平均）
+        # H と I の重み（H をどれだけ重視するか）
+        w = st.slider("H と I の重み（H をどれだけ重視するか）", min_value=0.0, max_value=1.0, value=0.60, step=0.05)
         z_h  = (Hn - bench["mu_h"]) / (bench["sd_h"] or 1e-6)
         z_i  = (In_ - bench["mu_i"]) / (bench["sd_i"] or 1e-6)
         # （任意の重みスライダーを使うなら）: w = st.slider(...); z_hi = w*z_h + (1-w)*z_i
