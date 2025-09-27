@@ -39,9 +39,9 @@ elif uploaded is not None:
 else:
     df = None
 
-# ここまでで df が決まる（サンプル or アップロード or None）
+# ここまでの分岐で df が決まる（サンプル or アップロード or None）
 
-# ---- データ未選択のときは終了させる ----
+# ---- データ未選択のときはここで止める ----
 if df is None:
     st.info("CSVをアップロードするか、上のボタンでサンプルデータを読み込んでください。")
     st.stop()
@@ -88,6 +88,7 @@ except Exception as e:
     st.error(f"学習中にエラー: {e}")
     st.stop()
 # ==== 学習（ここまで）====
+
 
 # 参考メトリクス（任意：失敗しても落とさない）
 if y.nunique() == 2 and len(y) >= 4:
