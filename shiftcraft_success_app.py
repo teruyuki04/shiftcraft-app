@@ -95,70 +95,53 @@ st.success("モデル学習＋確率校正 完了")
         except Exception:
             pass
 
-    st.header("② 予測（H/I/Sを入力）")
-    H_in = st.number_input("H（課題仮説：0–30）", min_value=0, max_value=30, value=24, step=1)
-    I_in = st.number_input("I（初期実装：0–5）", min_value=0, max_value=5, value=3, step=1)
-    S_in = st.number_input("S（スケール化：0–5）", min_value=0, max_value=5, value=0, step=1)
+st.header("② 予測（H/I/Sを入力）")
 
-    xq = pd.DataFrame([{
-        "h": H_in/30.0,
-        "i": I_in/5.0,
-        "s": S_in/5.0,
-        "h_i": (H_in/30.0)*(I_in/5.0),
-        "i_s": (I_in/5.0)*(S_in/5.0),
-    }])
+H_in = st.number_input("H（課題仮説: 0-30）", min_value=0, max_value=30, value=24, step=1)
+I_in = st.number_input("I（初期実装: 0-5）", min_value=0, max_value=5, value=3, step=1)
+S_in = st.number_input("S（スケール化: 0-5）", min_value=0, max_value=5, value=0, step=1)
 
-    # 予測（校正後）
-P = calibrated.predict_proba(Xq)[0,1]  # 0.0〜1.0
+Xq = pd.DataFrame([{
+    "H": H_in/30.0,
+    "I": I_in/5.0,
+    "S": S_in/5.0,
+    "h_i": (H_in/30.0)*(I_in/5.0),
+    "i_s": (I_in/5.0)*(S_in/5.0),
+}])
 
-# 上流モードトグル
-use_early_mode = st.sidebar.checkbox("上流モード（H重視の安全補正を有効化）", value=True)
-
-# ---- ここからガード付き補正ブロック ----
-if use_early_mode and all(name in locals() for name in ["H_in", "I_in", "S_in", "P"]):
-    H_GATE = 12          # Hの下限ゲート
-    H_HARD_FLOOR = 8     # 極端に低いHの閾値
-    CAP_STRONG_IS = 0.50 # Hゲート未達＆I/S高スコアの上限
-    CAP_ZERO_H   = 0.35  # H=0の上限
-
-    explain_rules = []
-
-    # 1) H=0 は 35% 上限
-    if H_in == 0:
-        old = P
-        P = min(P, CAP_ZERO_H)
-        if P < old:
-            explain_rules.append(f"H=0のため {P*100:.1f}%→{P*100:.1f}%に補正")
-
-    # 2) Hゲート未達 かつ I/S≧4 は 50% 上限
-    if H_in < H_GATE and I_in >= 4 and S_in >= 4:
-        old = P
-        P = min(P, CAP_STRONG_IS)
-        if P < old:
-            explain_rules.append(f"H<{H_GATE} かつ I/S高スコアのため {P*100:.1f}%→{P*100:.1f}%に補正")
-
-    # 3) H<8 も安全側に 35% 上限
-    if H_in < H_HARD_FLOOR:
-        old = P
-        P = min(P, CAP_ZERO_H)
-        if P < old:
-            explain_rules.append(f"H<{H_HARD_FLOOR} のため {P*100:.1f}%→{P*100:.1f}%に補正")
-# ---- ガードここまで ----
-
-st.metric(label="成功確率（校正後）", value=f"{P*100:.1f}%")
-
-# （任意）補正理由の表示
-if use_early_mode and 'explain_rules' in locals():
-    with st.expander("補正ルールの適用理由（クリックで表示）"):
-        if explain_rules:
-            for r in explain_rules:
-                st.write("・" + r)
-        else:
-            st.write("補正は適用されていません。")
-
-    # allow download of calibrated model inputs for audit
-    buf = io.StringIO()
-    data.to_csv(buf, index=False)
-    st.download_button("学習データ（ラベル付き）をダウンロード", buf.getvalue(), file_name="training_data_labeled.csv", mime="text/csv")
+calibrated = st.session_state.get("calibrated", None)
+if calibrated is None:
+    st.warning("まだモデルが学習されていません。ページ上部でCSVをアップロードして学習を実行してください。")
 else:
-    st.info("CSVをアップロードするか、サンプルデータを読み込んでください。")
+    P = float(calibrated.predict_proba(Xq)[0, 1])  # 0.0〜1.0
+
+    use_early_mode = st.sidebar.checkbox("上流モード（H重視の安全補正を有効化）", value=True)
+
+    if use_early_mode:
+        H_GATE = 12
+        H_HARD_FLOOR = 8
+        CAP_STRONG_IS = 0.50
+        CAP_ZERO_H   = 0.35
+        explain_rules = []
+
+        if H_in == 0:
+            old = P; P = min(P, CAP_ZERO_H)
+            if P < old: explain_rules.append(f"H=0のため {old*100:.1f}%→{P*100:.1f}%に補正")
+
+        if H_in < H_GATE and I_in >= 4 and S_in >= 4:
+            old = P; P = min(P, CAP_STRONG_IS)
+            if P < old: explain_rules.append(f"H<{H_GATE} かつ I/S高スコアのため {old*100:.1f}%→{P*100:.1f}%に補正")
+
+        if H_in < H_HARD_FLOOR:
+            old = P; P = min(P, CAP_ZERO_H)
+            if P < old: explain_rules.append(f"H<{H_HARD_FLOOR} のため {old*100:.1f}%→{P*100:.1f}%に補正")
+
+    st.metric(label="成功確率（校正後）", value=f"{P*100:.1f}%")
+
+    if use_early_mode and 'explain_rules' in locals():
+        with st.expander("補正ルールの適用理由（クリックで表示）"):
+            if explain_rules:
+                for r in explain_rules: st.write("・" + r)
+            else:
+                st.write("補正は適用されていません。")
+
