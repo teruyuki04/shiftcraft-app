@@ -220,7 +220,14 @@ with tab_bench:
 
         # あなたの現在値の z
         z_h = (Hn - bench["mu_h"]) / sd_h
-        z_i = (In_ - bench["mu_i"]) / sd_i
+        mu_i = bench.get("mu_i")
+        sd_i = bench.get("sd_i")
+
+        if mu_i is None or sd_i is None or sd_i == 0:
+            z_i = None
+        else:
+            z_i = (In - mu_i) / sd_i
+
 
         # 母集団の z 配列も同じ条件で再計算（NaN/Inf除去）
         import numpy as np
