@@ -39,32 +39,37 @@ elif uploaded is not None:
 else:
     df = None
 
-if df is not None:
-    st.dataframe(df)
+# ここまでで df が決まる（サンプル or アップロード or None）
 
-    # Build label (success=1 if A+B>=8)
-    if not {'company','H','I','S','A','B'}.issubset(df.columns):
-        st.error("必要列が不足しています。company, H, I, S, A, B を含めてください。")
-        st.stop()
+# ---- データ未選択のときは終了させる ----
+if df is None:
+    st.info("CSVをアップロードするか、上のボタンでサンプルデータを読み込んでください。")
+    st.stop()
 
-    data = df.copy()
-    data['label_success'] = ((data['A'] + data['B']) >= 8).astype(int)
+# ---- データ表示 ----
+st.dataframe(df)
 
-   # data: アップロードCSVのコピー（既にあります）
-# ラベル（成功=1）も既に作成済みの想定: data['label_success']
+# ---- 必要列チェック ----
+required_cols = {'company', 'H', 'I', 'S', 'A', 'B'}
+if not required_cols.issubset(df.columns):
+    st.error("必要列が不足しています。company, H, I, S, A, B を含めてください。")
+    st.stop()
 
-# 正規化した特徴量（学習用）
+# ---- ここから下は df が必ずある前提で学習処理 ----
+data = df.copy()
+data['label_success'] = ((data['A'] + data['B']) >= 8).astype(int)
+
+# 正規化した特徴量（学習用・小文字で統一）
 data["h"]   = data["H"] / 30.0
 data["i"]   = data["I"] / 5.0
 data["s"]   = data["S"] / 5.0
 data["h_i"] = data["h"] * data["i"]
 data["i_s"] = data["i"] * data["s"]
 
-# ---- 特徴量と目的変数 ----
 X = data[["h","i","s","h_i","i_s"]].copy()
 y = data["label_success"].astype(int)
 
-# ---- サンプル不足ガード（両クラス必要）----
+# 両クラスが無い場合は終了
 if y.nunique() < 2:
     st.warning("成功/非成功の両方のサンプルが必要です。現状は片側のみのため、学習はスキップします。")
     st.stop()
@@ -75,13 +80,10 @@ if 'model' not in locals():
 
 try:
     model.fit(X[['h','i','s','h_i','i_s']], y)
-
     calibrated = CalibratedClassifierCV(model, cv="prefit", method="isotonic")
     calibrated.fit(X[['h','i','s','h_i','i_s']], y)
-
     st.session_state["calibrated"] = calibrated
     st.success("モデル学習＋確率校正 完了")
-
 except Exception as e:
     st.error(f"学習中にエラー: {e}")
     st.stop()
