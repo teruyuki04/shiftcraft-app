@@ -60,34 +60,32 @@ data["s"]   = data["S"] / 5.0
 data["h_i"] = data["h"] * data["i"]
 data["i_s"] = data["i"] * data["s"]
 
+# ---- 特徴量と目的変数 ----
 X = data[["h","i","s","h_i","i_s"]].copy()
 y = data["label_success"].astype(int)
 
+# ---- サンプル不足ガード（両クラス必要）----
+if y.nunique() < 2:
+    st.warning("成功/非成功の両方のサンプルが必要です。現状は片側のみのため、学習はスキップします。")
+    st.stop()
 
-    # Because dataset may be tiny, fall back to simple fit without split
-    if y.nunique() < 2:
-        st.warning("成功/非成功の両方のデータが必要です。現状は片側のみのため、評価はスキップして学習のみ行います。")
-
- # ===== 学習（ここから） =====
-# モデル定義（未定義なら定義） ← try: の直前に置く
+# ==== 学習（ここから）====
 if 'model' not in locals():
     model = LogisticRegression(solver="liblinear", max_iter=1000, random_state=42)
 
 try:
     model.fit(X[['h','i','s','h_i','i_s']], y)
 
-    # 校正（小規模データなので prefit）
     calibrated = CalibratedClassifierCV(model, cv="prefit", method="isotonic")
     calibrated.fit(X[['h','i','s','h_i','i_s']], y)
 
-    # セッションに保存＆完了表示
     st.session_state["calibrated"] = calibrated
     st.success("モデル学習＋確率校正 完了")
 
 except Exception as e:
     st.error(f"学習中にエラー: {e}")
     st.stop()
-# ===== 学習（ここまで） =====
+# ==== 学習（ここまで）====
 
 # 参考メトリクス（任意：失敗しても落とさない）
 if y.nunique() == 2 and len(y) >= 4:
