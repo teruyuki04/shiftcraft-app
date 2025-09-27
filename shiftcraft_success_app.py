@@ -187,7 +187,7 @@ with tab_bench:
             st.metric("H（課題仮説）の位置", f"上位 {h_pct:.1f}%")
             st.caption(f"H 正規化値: {Hn:.3f}｜成功企業の平均: {bench['mu_h']:.3f}（±{bench['sd_h']:.3f}）")
         with col2:
-            st.metric("H+I（複合）の位置", f"上位 {100 - hi_pct:.1f}%")
+            st.metric("H+I（複合）の位置", f"上位 {hi_pct:.1f}%")
             st.caption(f"z_h={z_h:.2f}, z_i={z_i:.2f}, 重み w={w:.2f} → 合成 z={z_hi:.2f}")
 
         # （任意の視覚化：進捗バー）
