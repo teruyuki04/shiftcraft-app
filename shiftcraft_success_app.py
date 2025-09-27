@@ -73,6 +73,28 @@ y = data["label_success"].astype(int)
 if y.nunique() < 2:
     st.warning("成功/非成功の両方のサンプルが必要です。現状は片側のみのため、学習はスキップします。")
     st.stop()
+# ---- ベンチマーク統計（成功=1）を作って保存 ----  ← ここを68行目の直後に入れる
+success_df = data[data["label_success"] == 1].copy()
+
+if len(success_df) >= 5:  # 最低件数ガード
+    h_vals = success_df["h"].to_numpy()  # 0-1 正規化済み
+    i_vals = success_df["i"].to_numpy()
+
+    eps = 1e-6
+    mu_h = float(h_vals.mean());  sd_h = float(h_vals.std(ddof=1) or eps)
+    mu_i = float(i_vals.mean());  sd_i = float(i_vals.std(ddof=1) or eps)
+
+    # H+I 複合のサンプル（zスコア平均）
+    z_hi_samples = ((h_vals - mu_h) / sd_h + (i_vals - mu_i) / sd_i) / 2.0
+
+    st.session_state["bench"] = {
+        "h_samples": h_vals.tolist(),
+        "mu_h": mu_h, "sd_h": sd_h,
+        "mu_i": mu_i, "sd_i": sd_i,
+        "z_hi_samples": z_hi_samples.tolist(),
+    }
+else:
+    st.session_state.pop("bench", None)
 
 # ==== 学習（ここから）====
 if 'model' not in locals():
