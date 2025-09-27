@@ -67,33 +67,33 @@ if df is not None:
     if y.nunique() < 2:
         st.warning("成功/非成功の両方のデータが必要です。現状は片側のみのため、評価はスキップして学習のみ行います。")
 
-    model = Pipeline([
-        ("clf", LogisticRegression(penalty="elasticnet", l1_ratio=0.5, solver="saga", max_iter=5000))
-    ])
+  # ===== 学習（ここから） =====
+try:
+    model.fit(X[['h','i','s','h_i','i_s']], y)
 
-    try:
-        model.fit(X[['h','i','s','h_i','i_s']], y)
-        # Calibrate with same data if no split (small data). In production, use proper CV.
-        calibrated = CalibratedClassifierCV(model, cv="prefit", method="isotonic")
-        calibrated.fit(X[['h','i','s','h_i','i_s']], y)
-    except Exception as e:
-        st.error(f"学習中にエラー：{e}")
-        st.stop()
+    # 校正器（小規模データ向けに prefit 指定）
+    calibrated = CalibratedClassifierCV(model, cv="prefit", method="isotonic")
+    calibrated.fit(X[['h','i','s','h_i','i_s']], y)
 
+    # 学習成功 → セッションに保存＆完了表示
+    st.session_state["calibrated"] = calibrated
     st.success("モデル学習＋確率校正 完了")
 
-    # Optional quick metrics if both classes exist
-    if y.nunique() == 2 and len(y) >= 4:
-        try:
-            prob = calibrated.predict_proba(X[['h','i','s','h_i','i_s']])[:,1]
-            auc = roc_auc_score(y, prob)
-            brier = brier_score_loss(y, prob)
-            st.write(f"AUC: {auc:.3f} | Brier: {brier:.3f}")
-            st.session_state["calibrated"] = calibrated
-st.success("モデル学習＋確率校正 完了")
+except Exception as e:
+    st.error(f"学習中にエラー: {e}")
+    st.stop()
+# ===== 学習（ここまで） =====
 
-        except Exception:
-            pass
+# 参考メトリクス（クラスが両方あり、件数が最低限あるときだけ）
+if y.nunique() == 2 and len(y) >= 4:
+    try:
+        prob = calibrated.predict_proba(X[['h','i','s','h_i','i_s']])[:,1]
+        auc = roc_auc_score(y, prob)
+        brier = brier_score_loss(y, prob)
+        st.write(f"AUC: {auc:.3f} | Brier: {brier:.3f}")
+    except Exception:
+        pass
+
 
 st.header("② 予測（H/I/Sを入力）")
 
