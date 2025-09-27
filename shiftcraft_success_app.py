@@ -172,7 +172,7 @@ with tab_bench:
         z_h  = (Hn - bench["mu_h"]) / (bench["sd_h"] or 1e-6)
         z_i  = (In_ - bench["mu_i"]) / (bench["sd_i"] or 1e-6)
         # （任意の重みスライダーを使うなら）: w = st.slider(...); z_hi = w*z_h + (1-w)*z_i
-        z_hi = (z_h + z_i) / 2.0
+        z_hi = w * z_h + (1.0 - w) * z_i
         hi_pct = percentile_rank(bench["z_hi_samples"], z_hi)
         if hi_pct is None:
             st.warning("H+Iの比較に必要なデータが不足しています。")
