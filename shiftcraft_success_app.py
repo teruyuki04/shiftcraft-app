@@ -89,6 +89,9 @@ if df is not None:
             auc = roc_auc_score(y, prob)
             brier = brier_score_loss(y, prob)
             st.write(f"AUC: {auc:.3f} | Brier: {brier:.3f}")
+            st.session_state["calibrated"] = calibrated
+st.success("モデル学習＋確率校正 完了")
+
         except Exception:
             pass
 
