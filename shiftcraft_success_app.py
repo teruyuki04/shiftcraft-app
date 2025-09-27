@@ -78,6 +78,7 @@ try:
     # 学習成功 → セッションに保存＆完了表示
     st.session_state["calibrated"] = calibrated
     st.success("モデル学習＋確率校正 完了")
+    st.session_state["calibrated"] = calibrated
 
 except Exception as e:
     st.error(f"学習中にエラー: {e}")
