@@ -193,43 +193,34 @@ with tab_bench:
 
 
 # 学習済みモデルを session_state から取得
-calibrated = st.session_state.get("calibrated", None)
+with tab_prob:
+    calibrated = st.session_state.get("calibrated", None)
+    if calibrated is None:
+        st.warning("まだモデルが学習されていません。ページ上部でCSVをアップロードして学習を実行してください。")
+    else:
+        P = float(calibrated.predict_proba(Xq[["h","i","s","h_i","i_s"]])[0, 1])
 
-if calibrated is None:
-    st.warning("まだモデルが学習されていません。ページ上部でCSVをアップロードして学習を実行してください。")
-else:
-    # ← ここだけ列名を明示
-    P = float(calibrated.predict_proba(Xq[["h", "i", "s", "h_i", "i_s"]])[0, 1])  # 0.0〜1.0
-    # （以下は上流モード補正 → st.metric 表示、の流れでOK）
+        # 既存の上流モード補正（use_early_mode チェックボックス〜補正ルール）をここにそのまま
+        use_early_mode = st.sidebar.checkbox("上流モード（H重視の安全補正を有効化）", value=True)
+        if use_early_mode:
+            H_GATE = 12; H_HARD_FLOOR = 8; CAP_STRONG_IS = 0.50; CAP_ZERO_H = 0.35
+            explain_rules = []
+            if H_in == 0:
+                old = P; P = min(P, CAP_ZERO_H)
+                if P < old: explain_rules.append(f"H=0のため {old*100:.1f}%→{P*100:.1f}%に補正")
+            if H_in < H_GATE and I_in >= 4 and S_in >= 4:
+                old = P; P = min(P, CAP_STRONG_IS)
+                if P < old: explain_rules.append(f"H<{H_GATE} かつ I/S高スコアのため {old*100:.1f}%→{P*100:.1f}%に補正")
+            if H_in < H_HARD_FLOOR:
+                old = P; P = min(P, CAP_ZERO_H)
+                if P < old: explain_rules.append(f"H<{H_HARD_FLOOR} のため {old*100:.1f}%→{P*100:.1f}%に補正")
 
-
-    use_early_mode = st.sidebar.checkbox("上流モード（H重視の安全補正を有効化）", value=True)
-
-    if use_early_mode:
-        H_GATE = 12
-        H_HARD_FLOOR = 8
-        CAP_STRONG_IS = 0.50
-        CAP_ZERO_H   = 0.35
-        explain_rules = []
-
-        if H_in == 0:
-            old = P; P = min(P, CAP_ZERO_H)
-            if P < old: explain_rules.append(f"H=0のため {old*100:.1f}%→{P*100:.1f}%に補正")
-
-        if H_in < H_GATE and I_in >= 4 and S_in >= 4:
-            old = P; P = min(P, CAP_STRONG_IS)
-            if P < old: explain_rules.append(f"H<{H_GATE} かつ I/S高スコアのため {old*100:.1f}%→{P*100:.1f}%に補正")
-
-        if H_in < H_HARD_FLOOR:
-            old = P; P = min(P, CAP_ZERO_H)
-            if P < old: explain_rules.append(f"H<{H_HARD_FLOOR} のため {old*100:.1f}%→{P*100:.1f}%に補正")
-
-    st.metric(label="成功確率（校正後）", value=f"{P*100:.1f}%")
-
-    if use_early_mode and 'explain_rules' in locals():
-        with st.expander("補正ルールの適用理由（クリックで表示）"):
-            if explain_rules:
-                for r in explain_rules: st.write("・" + r)
-            else:
-                st.write("補正は適用されていません。")
+        st.metric("成功確率（校正後）", f"{P*100:.1f}%")
+        if use_early_mode and 'explain_rules' in locals():
+            with st.expander("補正ルールの適用理由（クリックで表示）"):
+                if explain_rules:
+                    for r in explain_rules:
+                        st.write("・" + r)
+                else:
+                    st.write("補正は適用されていません。")
 
