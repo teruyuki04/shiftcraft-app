@@ -167,6 +167,10 @@ if mode == "ベンチマーク比較":
     z_i  = (In_ - bench["mu_i"]) / (bench["sd_i"] or 1e-6)
     z_hi = (z_h + z_i) / 2.0
     hi_pct = percentile_rank(bench["z_hi_samples"], z_hi)
+    if h_pct is None or hi_pct is None:
+    st.warning("ベンチマーク件数が不足しています。成功企業データで学習を実行してください。")
+    st.stop()
+
 
     st.subheader("📊 ベンチマーク比較（成功企業に対する相対位置）")
     col1, col2 = st.columns(2)
