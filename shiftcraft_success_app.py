@@ -125,7 +125,7 @@ if y.nunique() == 2 and len(y) >= 4:
 
 
 st.header("② 予測（H/I/Sを入力）")
-mode = st.radio("評価モードを選択", ["ベンチマーク比較", "成功確率予測"], horizontal=True)
+tab_bench, tab_prob = st.tabs(["📊 ベンチマーク比較", "🎯 成功確率予測"])
 
 # 入力
 H_in = st.number_input("H（課題仮説: 0-30）", min_value=0, max_value=30, value=24, step=1)
