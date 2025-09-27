@@ -158,9 +158,9 @@ with tab_bench:
         import numpy as np
         samples = np.asarray(samples)
         if samples.size == 0:
-            return None
-        return float((samples <= x).sum()) / samples.size * 100.0
-
+        return None
+        # 上位% = 自分より大きいサンプルの割合
+        return float((samples > x).sum()) / samples.size * 100.0
     bench = st.session_state.get("bench")
     if not bench:
         st.warning("まだベンチマーク統計がありません。上部でCSV学習（成功企業データ）を実行してください。")
