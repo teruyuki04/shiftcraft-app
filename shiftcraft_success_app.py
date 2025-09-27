@@ -151,30 +151,32 @@ tab_data, tab_bench, tab_prob = st.tabs(
 )
 # ---- ベンチマーク比較モード ----  ← 118行目の直後に入れる
 with tab_bench:
-    # ---- ベンチマーク比較モード本体（ここに“従来のベンチ計算と表示”を移動）----
+    # ===== ベンチマーク比較（成功企業に対する相対位置） =====
 
-    # 1) ヘルパー
-   def percentile_rank(samples, x):
-       import numpy as np
-       samples = np.asarray(samples, dtype=float)
-       samples = samples[np.isfinite(samples)]           # NaN/Inf を除去
-       if samples.size == 0:
-           return None
-       # 「上位%」= 自分より大きいサンプルの割合
-       return float((samples > x).sum()) / samples.size * 100.0
+    # 1) ヘルパー：NaN/Inf 排除 + 上位％(大きいほど上位)
+    def percentile_rank(samples, x):
+        import numpy as np
+        samples = np.asarray(samples, dtype=float)
+        samples = samples[np.isfinite(samples)]
+        if samples.size == 0:
+            return None
+        return float((samples > x).sum()) / samples.size * 100.0
+
     bench = st.session_state.get("bench")
+
     if not bench:
         st.warning("まだベンチマーク統計がありません。上部でCSV学習（成功企業データ）を実行してください。")
-        # ここは return ではなく単に何も表示しないでOK
     else:
         # 2) H 単独
         h_pct = percentile_rank(bench["h_samples"], Hn)
         if h_pct is None:
             st.warning("Hの比較に必要なデータが不足しています。")
+
         # 3) H+I 複合（z平均）
-        # H と I の重み（H をどれだけ重視するか）
-        w = st.slider("H と I の重み（H をどれだけ重視するか）", min_value=0.0, max_value=1.0, value=0.60, step=0.05)
-        # ---- 安定化用の ε 下限（極小分散対策）----
+        # H と I の重み
+        w = st.slider("H と I の重み（H をどれだけ重視するか）", min_value=0.0, max_value=1.0, value=0.60)
+
+        # 安定化用の下限（極小分散対策）
         eps = 1e-6
         sd_h = bench.get("sd_h", None)
         sd_i = bench.get("sd_i", None)
@@ -185,40 +187,39 @@ with tab_bench:
         z_h = (Hn - bench["mu_h"]) / sd_h
         z_i = (In_ - bench["mu_i"]) / sd_i
 
-        # 母集団の z 配列を “同じ ε” で再計算（←ここがポイント）
+        # 母集団の z 配列も同じ条件で再計算（NaN/Inf除去）
         import numpy as np
         h_samples = np.asarray(bench["h_samples"], dtype=float)
         i_samples = np.asarray(bench["i_samples"], dtype=float)
-
         z_h_samples = (h_samples - bench["mu_h"]) / sd_h
         z_i_samples = (i_samples - bench["mu_i"]) / sd_i
+        z_h_samples = z_h_samples[np.isfinite(z_h_samples)]
+        z_i_samples = z_i_samples[np.isfinite(z_i_samples)]
 
-        # 合成はスライダー w を使って「配列も」作る
-        z_hi_samples = w * z_h_samples + (1.0 - w) * z_i_samples
-        # 合成 z（あなたの現在値）
+        # 合成 z（あなた & 配列）
         z_hi = w * z_h + (1.0 - w) * z_i
+        z_hi_samples = w * z_h_samples + (1.0 - w) * z_i_samples
+        z_hi_samples = z_hi_samples[np.isfinite(z_hi_samples)]
 
-        # NaN/Inf を除いた上でパーセンタイル
-        h_pct  = percentile_rank(z_h_samples,  z_h)
+        # パーセンタイル
         hi_pct = percentile_rank(z_hi_samples, z_hi)
 
-        if hi_pct is None:
-            st.warning("H+Iの比較に必要なデータが不足しています。")
-
+        # 表示
         st.subheader("📊 ベンチマーク比較（成功企業に対する相対位置）")
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("H（課題仮説）の位置", f"上位 {h_pct:.1f}%")
-            st.caption(f"H 正規化値: {Hn:.3f}｜成功企業の平均: {bench['mu_h']:.3f}（±{bench['sd_h']:.3f}）")
+            st.metric("H（課題仮説）の位置", f"上位 { (h_pct if h_pct is not None else 0):.1f}%")
+            st.caption(f"H 正規化値: {Hn:.3f} | 成功企業の平均: {bench['mu_h']:.3f} (±{bench['sd_h']:.3f})")
         with col2:
-            st.metric("H+I（複合）の位置", f"上位 {hi_pct:.1f}%")
+            st.metric("H+I（複合）の位置", f"上位 { (hi_pct if hi_pct is not None else 0):.1f}%")
             st.caption(f"z_h={z_h:.2f}, z_i={z_i:.2f}, 重み w={w:.2f} → 合成 z={z_hi:.2f}")
 
-        # （任意の視覚化：進捗バー）
+        # 任意の可視化（進捗バー）
         st.write("H（課題仮説）の位置")
-        st.progress(int(max(0, min(100, 100 - h_pct))))
+        st.progress(int(max(0, min(100, h_pct or 0))))
         st.write("H+I（複合）の位置")
-        st.progress(int(max(0, min(100, 100 - hi_pct))))
+        st.progress(int(max(0, min(100, hi_pct or 0))))
+
 
 
 
