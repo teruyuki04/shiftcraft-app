@@ -97,17 +97,25 @@ st.success("モデル学習＋確率校正 完了")
 
 st.header("② 予測（H/I/Sを入力）")
 
+# 入力
 H_in = st.number_input("H（課題仮説: 0-30）", min_value=0, max_value=30, value=24, step=1)
 I_in = st.number_input("I（初期実装: 0-5）", min_value=0, max_value=5, value=3, step=1)
 S_in = st.number_input("S（スケール化: 0-5）", min_value=0, max_value=5, value=0, step=1)
 
+# 正規化（先に変数に入れておくと NameError を回避しやすい）
+Hn = H_in / 30.0
+In_ = I_in / 5.0
+Sn = S_in / 5.0
+
+# 予測用の特徴量（学習時と同じ列名: 'h','i','s','h_i','i_s'）
 Xq = pd.DataFrame([{
-    "H": H_in/30.0,
-    "I": I_in/5.0,
-    "S": S_in/5.0,
-    "h_i": (H_in/30.0)*(I_in/5.0),
-    "i_s": (I_in/5.0)*(S_in/5.0),
-}])
+    "h": Hn,
+    "i": In_,
+    "s": Sn,
+    "h_i": Hn * In_,
+    "i_s": In_ * Sn,
+}])[["h", "i", "s", "h_i", "i_s"]]
+
 
 calibrated = st.session_state.get("calibrated", None)
 if calibrated is None:
