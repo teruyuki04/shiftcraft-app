@@ -68,26 +68,24 @@ y = data["label_success"].astype(int)
     if y.nunique() < 2:
         st.warning("成功/非成功の両方のデータが必要です。現状は片側のみのため、評価はスキップして学習のみ行います。")
 
-  # ===== 学習（ここから） =====
-model = LogisticRegression(solver="liblinear", max_iter=1000, random_state=42)
+ # ===== 学習（ここから） =====
 try:
     model.fit(X[['h','i','s','h_i','i_s']], y)
 
-    # 校正器（小規模データ向けに prefit 指定）
+    # 校正（小規模データなので prefit）
     calibrated = CalibratedClassifierCV(model, cv="prefit", method="isotonic")
     calibrated.fit(X[['h','i','s','h_i','i_s']], y)
 
-    # 学習成功 → セッションに保存＆完了表示
+    # セッションに保存＆完了表示
     st.session_state["calibrated"] = calibrated
     st.success("モデル学習＋確率校正 完了")
-    st.session_state["calibrated"] = calibrated
 
 except Exception as e:
     st.error(f"学習中にエラー: {e}")
     st.stop()
 # ===== 学習（ここまで） =====
 
-# 参考メトリクス（クラスが両方あり、件数が最低限あるときだけ）
+# 参考メトリクス（任意：失敗しても落とさない）
 if y.nunique() == 2 and len(y) >= 4:
     try:
         prob = calibrated.predict_proba(X[['h','i','s','h_i','i_s']])[:,1]
@@ -96,6 +94,7 @@ if y.nunique() == 2 and len(y) >= 4:
         st.write(f"AUC: {auc:.3f} | Brier: {brier:.3f}")
     except Exception:
         pass
+
 
 
 st.header("② 予測（H/I/Sを入力）")
