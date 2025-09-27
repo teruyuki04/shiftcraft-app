@@ -162,6 +162,8 @@ if mode == "ベンチマーク比較":
     # H単独（0-1スケールの h のパーセンタイル）
     h_pct = percentile_rank(bench["h_samples"], Hn)
 
+    # H と I の重み（現場でチューニング可能）
+    w = st.slider("H と I の重み（H をどれだけ重視するか）", min_value=0.0, max_value=1.0, value=0.6, step=0.05)
     # H+I 複合：zスコア平均 → 成功企業の z_hi サンプル分布に対するパーセンタイル
     z_h  = (Hn - bench["mu_h"]) / (bench["sd_h"] or 1e-6)
     z_i  = (In_ - bench["mu_i"]) / (bench["sd_i"] or 1e-6)
