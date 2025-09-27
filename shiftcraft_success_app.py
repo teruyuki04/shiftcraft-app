@@ -193,6 +193,11 @@ with tab_bench:
         return float((samples > x).sum()) / samples.size * 100.0
 
     bench = st.session_state.get("bench")
+    bench = st.session_state.get("bench")
+    if (not bench) or ("i_samples" not in bench) or ("z_hi_samples" not in bench):
+        st.warning("ベンチマーク統計が不足しています。上部でCSVを読み込み（学習）してください。")
+        st.stop()
+
 
     if not bench:
         st.warning("まだベンチマーク統計がありません。上部でCSV学習（成功企業データ）を実行してください。")
