@@ -117,11 +117,16 @@ Xq = pd.DataFrame([{
 }])[["h", "i", "s", "h_i", "i_s"]]
 
 
+# 学習済みモデルを session_state から取得
 calibrated = st.session_state.get("calibrated", None)
+
 if calibrated is None:
     st.warning("まだモデルが学習されていません。ページ上部でCSVをアップロードして学習を実行してください。")
 else:
-    P = float(calibrated.predict_proba(Xq)[0, 1])  # 0.0〜1.0
+    # ← ここだけ列名を明示
+    P = float(calibrated.predict_proba(Xq[["h", "i", "s", "h_i", "i_s"]])[0, 1])  # 0.0〜1.0
+    # （以下は上流モード補正 → st.metric 表示、の流れでOK）
+
 
     use_early_mode = st.sidebar.checkbox("上流モード（H重視の安全補正を有効化）", value=True)
 
