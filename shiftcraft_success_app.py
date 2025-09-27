@@ -167,7 +167,7 @@ if mode == "ベンチマーク比較":
     # H+I 複合：zスコア平均 → 成功企業の z_hi サンプル分布に対するパーセンタイル
     z_h  = (Hn - bench["mu_h"]) / (bench["sd_h"] or 1e-6)
     z_i  = (In_ - bench["mu_i"]) / (bench["sd_i"] or 1e-6)
-    z_hi = (z_h + z_i) / 2.0
+    z_hi = w * z_h + (1.0 - w) * z_i
     hi_pct = percentile_rank(bench["z_hi_samples"], z_hi)
     if h_pct is None or hi_pct is None:
     st.warning("ベンチマーク件数が不足しています。成功企業データで学習を実行してください。")
