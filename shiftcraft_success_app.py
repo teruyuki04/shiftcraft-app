@@ -69,6 +69,10 @@ y = data["label_success"].astype(int)
         st.warning("成功/非成功の両方のデータが必要です。現状は片側のみのため、評価はスキップして学習のみ行います。")
 
  # ===== 学習（ここから） =====
+# モデル定義（未定義なら定義） ← try: の直前に置く
+if 'model' not in locals():
+    model = LogisticRegression(solver="liblinear", max_iter=1000, random_state=42)
+
 try:
     model.fit(X[['h','i','s','h_i','i_s']], y)
 
